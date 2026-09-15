@@ -261,11 +261,6 @@
     </section>
 
     <!-- YOUTUBE -->
-    <section class="panel" id="panel-youtube">
-      <label class="field-label">YouTube URL</label>
-      <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
-      <div class="row">
-        <button class="btn secondary" id="ytLookupBtn">Look up video</button>
       </div>
       <div id="ytPreview"></div>
       <label class="field-label" id="ytTranscriptLabel" style="display:none">Paste the transcript here</label>
@@ -274,34 +269,24 @@
         <button class="btn" id="ytSaveBtn">Save thought</button>
       </div>
       <p class="msg" id="ytMsg"></p>
-    </section>
-
-    <!-- PDF -->
-    <section class="panel" id="panel-pdf">
-      <div class="dropzone" id="pdfDropzone">
-        📄 Drag a PDF here, or tap to choose a file
-        <input type="file" id="pdfInput" accept="application/pdf" style="display:none">
-      </div>
-      <p class="msg" id="pdfProgress"></p>
-      <label class="field-label" id="pdfTextLabel" style="display:none">Extracted text (edit before saving)</label>
-      <textarea id="pdfText" style="display:none"></textarea>
-      <div class="row" id="pdfSaveRow" style="display:none">
-        <button class="btn" id="pdfSaveBtn">Save thought</button>
-      </div>
-      <p class="msg" id="pdfMsg"></p>
-    </section>
+    <section class="panel" id="panel-youtube">
+<label class="field-label">YouTube URL</label>
+<input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
+<div class="row">
+<button class="btn" id="ytCaptureBtn">Capture</button>
+</div>
+<p class="msg" id="ytMsg"></p>
+</section>
 
     <!-- URL -->
     <section class="panel" id="panel-url">
-      <label class="field-label">Article URL</label>
-      <input type="text" id="urlInput" placeholder="https://example.com/article">
-      <p class="note">Browsers won't let a web page reach into another website and grab its text — that's a security rule, not a bug. So paste the article content below yourself.</p>
-      <label class="field-label">Paste the article text</label>
-      <textarea id="urlText" placeholder="Paste the article content…"></textarea>
-      <div class="row">
-        <button class="btn" id="urlSaveBtn">Save thought</button>
-      </div>
-      <p class="msg" id="urlMsg"></p>
+<label class="field-label">Article URL</label>
+<input type="text" id="urlInput" placeholder="https://example.com/article">
+<div class="row">
+<button class="btn" id="urlCaptureBtn">Capture</button>
+</div>
+<p class="msg" id="urlMsg"></p>
+</section>
     </section>
 
     <!-- SEARCH -->
@@ -593,82 +578,32 @@
   });
 
   /* ============ YOUTUBE ============ */
-  const ytUrl = document.getElementById("ytUrl");
-  const ytPreview = document.getElementById("ytPreview");
-  const ytTranscript = document.getElementById("ytTranscript");
-  const ytTranscriptLabel = document.getElementById("ytTranscriptLabel");
-  const ytSaveRow = document.getElementById("ytSaveRow");
-  const ytMsg = document.getElementById("ytMsg");
-  let ytCurrent = null; // { videoId, title }
+const ytUrl = document.getElementById("ytUrl");
+const ytMsg = document.getElementById("ytMsg");
 
-  function extractVideoId(url) {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-    ];
-    for (const p of patterns) {
-      const m = url.match(p);
-      if (m) return m[1];
-    }
-    return null;
-  }
+document.getElementById("ytCaptureBtn").addEventListener("click", async () => {
+const url = ytUrl.value.trim();
+if (!url) {
+ytMsg.textContent = "Paste a YouTube link first.";
+ytMsg.className = "msg err";
+return;
+}
+ytMsg.textContent = "Fetching transcript… this can take a few seconds.";
+ytMsg.className = "msg";
+try {
+const { data, error } = await supabase.functions.invoke("capture-youtube", { body: { url } });
+if (error) throw error;
+if (!data.ok) throw new Error(data.error || "Capture failed.");
+ytMsg.textContent = `Saved: ${data.title}${data.has_transcript ? "" : " (no captions found — saved from the description instead)"}`;
+ytMsg.className = "msg ok";
+ytUrl.value = "";
+} catch (err) {
+ytMsg.textContent = "Could not capture: " + (err.message || err);
+ytMsg.className = "msg err";
+}
+});
 
-  document.getElementById("ytLookupBtn").addEventListener("click", async () => {
-    ytMsg.textContent = "";
-    const url = ytUrl.value.trim();
-    const videoId = extractVideoId(url);
-    if (!videoId) {
-      ytMsg.textContent = "Couldn't find a video ID in that URL.";
-      ytMsg.className = "msg err";
-      return;
-    }
-    try {
-      const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-      if (!res.ok) throw new Error("Video not found or private.");
-      const data = await res.json();
-      const title = decodeEntities(data.title);
-      ytCurrent = { videoId, title };
-      const transcriptLink = `https://www.youtube.com/watch?v=${videoId}`;
-      ytPreview.innerHTML = `
-        <img class="thumb" src="${data.thumbnail_url}" alt="">
-        <h3 style="margin:6px 0">${escapeHtml(title)}</h3>
-        <a class="btn secondary" style="display:inline-block;text-decoration:none;margin-top:6px" href="${transcriptLink}" target="_blank" rel="noopener">Open video → Get Transcript</a>
-        <p class="note">On the video page, click the "..." below the video (or the description), choose <b>Show transcript</b>, then select all the transcript text and copy it. Come back here and paste it below.</p>
-      `;
-      ytTranscriptLabel.style.display = "block";
-      ytTranscript.style.display = "block";
-      ytSaveRow.style.display = "flex";
-    } catch (err) {
-      ytMsg.textContent = "Could not look up that video: " + err.message;
-      ytMsg.className = "msg err";
-    }
-  });
-
-  document.getElementById("ytSaveBtn").addEventListener("click", async () => {
-    const transcript = decodeEntities(ytTranscript.value.trim());
-    if (!ytCurrent) return;
-    if (!transcript) {
-      ytMsg.textContent = "Paste the transcript before saving.";
-      ytMsg.className = "msg err";
-      return;
-    }
-    try {
-      const content = `📹 YouTube: ${ytCurrent.title}\n\n${transcript}`;
-      const thought = await saveThought({ content, metadata: { video_id: ytCurrent.videoId } });
-      await saveSource({ thoughtId: thought.id, sourceText: transcript, sourceKind: "youtube_transcript" });
-      ytMsg.textContent = "Saved.";
-      ytMsg.className = "msg ok";
-      ytTranscript.value = "";
-      ytUrl.value = "";
-      ytPreview.innerHTML = "";
-      ytTranscriptLabel.style.display = "none";
-      ytTranscript.style.display = "none";
-      ytSaveRow.style.display = "none";
-      ytCurrent = null;
-    } catch (err) {
-      ytMsg.textContent = "Could not save: " + err.message;
-      ytMsg.className = "msg err";
-    }
-  });
+</parameter name="path">/home/claude/capture-url-index.ts
 
   /* ============ PDF ============ */
   if (window.pdfjsLib) {
@@ -746,28 +681,28 @@
   });
 
   /* ============ URL ============ */
-  document.getElementById("urlSaveBtn").addEventListener("click", async () => {
-    const urlMsg = document.getElementById("urlMsg");
-    const url = document.getElementById("urlInput").value.trim();
-    const text = decodeEntities(document.getElementById("urlText").value.trim());
-    if (!url || !text) {
-      urlMsg.textContent = "Add both the URL and the article text.";
-      urlMsg.className = "msg err";
-      return;
-    }
-    try {
-      const content = `🔗 URL: ${url}\n\n${text}`;
-      const thought = await saveThought({ content, metadata: { url } });
-      await saveSource({ thoughtId: thought.id, sourceText: text, sourceKind: "web" });
-      urlMsg.textContent = "Saved.";
-      urlMsg.className = "msg ok";
-      document.getElementById("urlInput").value = "";
-      document.getElementById("urlText").value = "";
-    } catch (err) {
-      urlMsg.textContent = "Could not save: " + err.message;
-      urlMsg.className = "msg err";
-    }
-  });
+document.getElementById("urlCaptureBtn").addEventListener("click", async () => {
+const urlMsg = document.getElementById("urlMsg");
+const url = document.getElementById("urlInput").value.trim();
+if (!url) {
+urlMsg.textContent = "Paste a link first.";
+urlMsg.className = "msg err";
+return;
+}
+urlMsg.textContent = "Fetching page…";
+urlMsg.className = "msg";
+try {
+const { data, error } = await supabase.functions.invoke("capture-url", { body: { url } });
+if (error) throw error;
+if (!data.ok) throw new Error(data.error || "Capture failed.");
+urlMsg.textContent = `Saved: ${data.title}`;
+urlMsg.className = "msg ok";
+document.getElementById("urlInput").value = "";
+} catch (err) {
+urlMsg.textContent = "Could not capture: " + (err.message || err);
+urlMsg.className = "msg err";
+}
+});
 
   /* ============ SEARCH ============ */
   document.getElementById("searchBtn").addEventListener("click", async () => {
