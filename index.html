@@ -279,7 +279,20 @@
 </section>
 
     <!-- URL -->
-    <section class="panel" id="panel-url">
+    <!-- PDF -->
+<section class="panel" id="panel-pdf">
+<div class="dropzone" id="pdfDropzone">
+📄 Drag a PDF here, or tap to choose a file
+<input type="file" id="pdfInput" accept="application/pdf" style="display:none">
+</div>
+<p class="msg" id="pdfProgress"></p>
+<label class="field-label" id="pdfTextLabel" style="display:none">Extracted text (edit before saving)</label>
+<textarea id="pdfText" style="display:none"></textarea>
+<div class="row" id="pdfSaveRow" style="display:none">
+<button class="btn" id="pdfSaveBtn">Save thought</button>
+</div>
+<p class="msg" id="pdfMsg"></p>
+</section>section class="panel" id="panel-url">
 <label class="field-label">Article URL</label>
 <input type="text" id="urlInput" placeholder="https://example.com/article">
 <div class="row">
