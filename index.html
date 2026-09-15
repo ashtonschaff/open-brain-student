@@ -1,205 +1,805 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Open Brain</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="config.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f0f0f;
-      color: #e5e5e5;
-      min-height: 100vh;
-      padding: 32px 16px;
-    }
-    .container { max-width: 680px; margin: 0 auto; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Open Brain</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6366f1">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --card: #161616;
+    --card-hover: #1c1c1c;
+    --border: #262626;
+    --accent: #6366f1;
+    --accent-dim: #4f46e5;
+    --text: #e8e8e8;
+    --text-dim: #9a9a9a;
+    --danger: #ef4444;
+    --success: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+  }
+  input, textarea {
+    font-family: inherit;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 12px;
+    width: 100%;
+  }
+  input:focus, textarea:focus { outline: 1px solid var(--accent); }
 
-    header { margin-bottom: 32px; }
-    h1 { font-size: 1.5rem; font-weight: 600; color: #fff; }
-    .status {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 0.8rem; color: #555; margin-top: 6px;
-    }
-    .dot {
-      width: 7px; height: 7px; border-radius: 50%; background: #333;
-      flex-shrink: 0; transition: background 0.3s;
-    }
-    .dot.connected { background: #22c55e; }
-    .dot.error { background: #ef4444; }
+  /* ---------- Auth screen ---------- */
+  #authScreen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .auth-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .auth-box h1 { margin: 0 0 4px; font-size: 22px; }
+  .auth-box p.sub { color: var(--text-dim); margin: 0 0 24px; font-size: 14px; }
+  .auth-box input { margin-bottom: 12px; }
+  .auth-primary {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .auth-primary:disabled { opacity: 0.6; }
+  .auth-toggle {
+    background: none;
+    color: var(--accent);
+    width: 100%;
+    padding: 10px;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .auth-error {
+    color: var(--danger);
+    font-size: 13px;
+    margin: 8px 0 0;
+    min-height: 16px;
+  }
 
-    .banner {
-      background: #1a0a0a; border: 1px solid #3a1515; border-radius: 10px;
-      padding: 16px 18px; margin-bottom: 24px; font-size: 0.875rem;
-      color: #f87171; line-height: 1.6; display: none;
-    }
-    .banner code {
-      background: #2a1010; padding: 1px 6px; border-radius: 4px;
-      font-size: 0.8rem; font-family: monospace;
-    }
+  /* ---------- App shell ---------- */
+  #app { display: none; max-width: 720px; margin: 0 auto; padding-bottom: 40px; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); flex-shrink: 0; }
+  .dot.on { background: var(--success); }
+  .status-text { font-size: 12px; color: var(--text-dim); }
+  #signOutBtn {
+    background: var(--card);
+    color: var(--text-dim);
+    padding: 8px 14px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+  }
 
-    .capture {
-      background: #161616; border: 1px solid #222; border-radius: 12px;
-      padding: 20px; margin-bottom: 28px;
-    }
-    textarea {
-      width: 100%; background: #0f0f0f; border: 1px solid #252525;
-      border-radius: 8px; color: #e5e5e5; font-size: 0.95rem;
-      padding: 12px 14px; resize: vertical; min-height: 96px;
-      font-family: inherit; outline: none; transition: border-color 0.2s;
-      line-height: 1.5;
-    }
-    textarea:focus { border-color: #6366f1; }
-    textarea::placeholder { color: #383838; }
-    .row {
-      display: flex; align-items: center; gap: 12px; margin-top: 12px;
-    }
-    button {
-      background: #6366f1; color: #fff; border: none; border-radius: 8px;
-      padding: 9px 22px; font-size: 0.875rem; font-weight: 500;
-      cursor: pointer; transition: background 0.15s; white-space: nowrap;
-    }
-    button:hover:not(:disabled) { background: #5254cc; }
-    button:disabled { background: #1e1e1e; color: #444; cursor: not-allowed; }
-    .hint { font-size: 0.75rem; color: #444; }
-    .save-msg { font-size: 0.8rem; min-height: 16px; }
-    .save-msg.ok { color: #22c55e; }
-    .save-msg.err { color: #ef4444; }
+  nav#tabs {
+    display: flex;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  nav#tabs button {
+    background: none;
+    color: var(--text-dim);
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+  }
+  nav#tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-    .section-label {
-      font-size: 0.7rem; font-weight: 600; color: #444;
-      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;
-    }
-    .thought {
-      background: #161616; border: 1px solid #1e1e1e; border-radius: 10px;
-      padding: 16px 18px; margin-bottom: 8px;
-    }
-    .thought-text { font-size: 0.9rem; color: #ccc; line-height: 1.55; white-space: pre-wrap; }
-    .thought-time { font-size: 0.72rem; color: #444; margin-top: 8px; }
-    .empty { color: #333; font-size: 0.875rem; text-align: center; padding: 48px 0; }
-  </style>
+  main { padding: 20px 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .card .meta { color: var(--text-dim); font-size: 12px; margin-bottom: 8px; }
+  .card .content { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    padding: 12px 18px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .btn:disabled { opacity: 0.5; }
+  .btn.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .btn.full { width: 100%; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  .field-label { font-size: 12px; color: var(--text-dim); margin: 14px 0 6px; display: block; }
+  textarea { min-height: 140px; resize: vertical; }
+
+  /* mic button */
+  .mic-wrap { display: flex; flex-direction: column; align-items: center; padding: 30px 0 10px; }
+  #micBtn {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #micBtn.listening { animation: pulse 1.2s infinite; background: var(--danger); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.55); }
+    70% { box-shadow: 0 0 0 22px rgba(239,68,68,0); }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  }
+  .mic-label { margin-top: 12px; font-size: 13px; color: var(--text-dim); }
+
+  /* drop zone */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 36px 16px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .dropzone.drag { border-color: var(--accent); color: var(--accent); background: rgba(99,102,241,0.06); }
+
+  .thumb { width: 100%; max-width: 320px; border-radius: 10px; margin: 10px 0; display: block; }
+  .note { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 8px; }
+  .msg { font-size: 13px; margin-top: 10px; }
+  .msg.ok { color: var(--success); }
+  .msg.err { color: var(--danger); }
+  .empty { color: var(--text-dim); font-size: 14px; text-align: center; padding: 30px 0; }
+</style>
 </head>
 <body>
-<div class="container">
 
+<!-- ============ AUTH SCREEN ============ -->
+<div id="authScreen">
+  <div class="auth-box">
+    <h1>🧠 Open Brain</h1>
+    <p class="sub" id="authSub">Sign in to your brain</p>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
+    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+    <button class="auth-primary" id="authSubmitBtn">Sign In</button>
+    <button class="auth-toggle" id="authToggleBtn">Need an account? Create one</button>
+    <p class="auth-error" id="authError"></p>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
   <header>
-    <h1>🧠 My Open Brain</h1>
-    <div class="status">
-      <div class="dot" id="dot"></div>
-      <span id="statusText">Connecting...</span>
+    <div class="brand">
+      <span class="dot" id="statusDot"></span>
+      <span>Open Brain</span>
     </div>
+    <button id="signOutBtn">Sign out</button>
   </header>
 
-  <div class="banner" id="banner"></div>
+  <nav id="tabs">
+    <button data-tab="recent" class="active">Recent</button>
+    <button data-tab="voice">Voice</button>
+    <button data-tab="youtube">YouTube</button>
+    <button data-tab="pdf">PDF</button>
+    <button data-tab="url">URL</button>
+    <button data-tab="search">Search</button>
+  </nav>
 
-  <div class="capture">
-    <textarea id="input" placeholder="Capture anything — ideas, notes, things you learned, questions, plans..." rows="4"></textarea>
-    <div class="row">
-      <button id="saveBtn" onclick="save()" disabled>Save to Brain</button>
-      <span class="hint">or Ctrl+Enter</span>
-      <span class="save-msg" id="saveMsg"></span>
-    </div>
-  </div>
+  <main>
 
-  <div class="section-label">Recent Thoughts</div>
-  <div id="list"><div class="empty">Loading...</div></div>
+    <!-- RECENT -->
+    <section class="panel active" id="panel-recent">
+      <div id="recentList"><div class="empty">Loading…</div></div>
+    </section>
 
+    <!-- VOICE -->
+    <section class="panel" id="panel-voice">
+      <div class="mic-wrap">
+        <button id="micBtn">🎤</button>
+        <div class="mic-label" id="micLabel">Tap to start speaking</div>
+      </div>
+      <label class="field-label">Transcript (edit before saving)</label>
+      <textarea id="voiceText" placeholder="Your words will appear here…"></textarea>
+      <div class="row">
+        <button class="btn" id="voiceSaveBtn">Save thought</button>
+        <button class="btn secondary" id="voiceClearBtn">Clear</button>
+      </div>
+      <p class="msg" id="voiceMsg"></p>
+    </section>
+
+    <!-- YOUTUBE -->
+    <section class="panel" id="panel-youtube">
+      <label class="field-label">YouTube URL</label>
+      <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
+      <div class="row">
+        <button class="btn secondary" id="ytLookupBtn">Look up video</button>
+      </div>
+      <div id="ytPreview"></div>
+      <label class="field-label" id="ytTranscriptLabel" style="display:none">Paste the transcript here</label>
+      <textarea id="ytTranscript" style="display:none" placeholder="Paste the transcript text…"></textarea>
+      <div class="row" id="ytSaveRow" style="display:none">
+        <button class="btn" id="ytSaveBtn">Save thought</button>
+      </div>
+      <p class="msg" id="ytMsg"></p>
+    </section>
+
+    <!-- PDF -->
+    <section class="panel" id="panel-pdf">
+      <div class="dropzone" id="pdfDropzone">
+        📄 Drag a PDF here, or tap to choose a file
+        <input type="file" id="pdfInput" accept="application/pdf" style="display:none">
+      </div>
+      <p class="msg" id="pdfProgress"></p>
+      <label class="field-label" id="pdfTextLabel" style="display:none">Extracted text (edit before saving)</label>
+      <textarea id="pdfText" style="display:none"></textarea>
+      <div class="row" id="pdfSaveRow" style="display:none">
+        <button class="btn" id="pdfSaveBtn">Save thought</button>
+      </div>
+      <p class="msg" id="pdfMsg"></p>
+    </section>
+
+    <!-- URL -->
+    <section class="panel" id="panel-url">
+      <label class="field-label">Article URL</label>
+      <input type="text" id="urlInput" placeholder="https://example.com/article">
+      <p class="note">Browsers won't let a web page reach into another website and grab its text — that's a security rule, not a bug. So paste the article content below yourself.</p>
+      <label class="field-label">Paste the article text</label>
+      <textarea id="urlText" placeholder="Paste the article content…"></textarea>
+      <div class="row">
+        <button class="btn" id="urlSaveBtn">Save thought</button>
+      </div>
+      <p class="msg" id="urlMsg"></p>
+    </section>
+
+    <!-- SEARCH -->
+    <section class="panel" id="panel-search">
+      <input type="text" id="searchInput" placeholder="Search your thoughts…">
+      <div class="row">
+        <button class="btn" id="searchBtn">Search</button>
+        <button class="btn secondary" id="searchClearBtn">Clear</button>
+      </div>
+      <div id="searchResults" style="margin-top:16px"></div>
+    </section>
+
+  </main>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="config.js"></script>
 <script>
-  let db = null
+(function () {
+  "use strict";
 
-  function showBanner(html) {
-    const b = document.getElementById('banner')
-    b.innerHTML = html
-    b.style.display = 'block'
-    document.getElementById('dot').className = 'dot error'
-    document.getElementById('statusText').textContent = 'Not connected'
+  /* ============ SUPABASE ============ */
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let currentUser = null;
+
+  /* ============ ENTITY DECODER ============
+     PDF text extraction and copy-pasted HTML occasionally leave literal
+     entity codes behind instead of the character they stand for. This
+     hits Spanish text hardest (accented letters, ¡ ¿ show up constantly).
+     &amp; is decoded LAST so a double-escaped "&amp;lt;" can't turn into
+     a real "<" by accident. */
+  function decodeEntities(text) {
+    if (!text) return text;
+    const map = [
+      ["&lt;", "<"], ["&gt;", ">"], ["&quot;", '"'], ["&#39;", "'"],
+      ["&nbsp;", " "], ["&rsquo;", "\u2019"], ["&lsquo;", "\u2018"],
+      ["&rdquo;", "\u201d"], ["&ldquo;", "\u201c"], ["&mdash;", "\u2014"],
+      ["&ndash;", "\u2013"], ["&hellip;", "\u2026"],
+      ["&aacute;", "\u00e1"], ["&Aacute;", "\u00c1"],
+      ["&eacute;", "\u00e9"], ["&Eacute;", "\u00c9"],
+      ["&iacute;", "\u00ed"], ["&Iacute;", "\u00cd"],
+      ["&oacute;", "\u00f3"], ["&Oacute;", "\u00d3"],
+      ["&uacute;", "\u00fa"], ["&Uacute;", "\u00da"],
+      ["&ntilde;", "\u00f1"], ["&Ntilde;", "\u00d1"],
+      ["&iexcl;", "\u00a1"], ["&iquest;", "\u00bf"],
+      ["&amp;", "&"]
+    ];
+    let out = text;
+    for (const [entity, char] of map) {
+      out = out.split(entity).join(char);
+    }
+    return out;
   }
 
-  async function init() {
-    if (typeof SUPABASE_URL === 'undefined' || SUPABASE_URL.includes('PASTE_YOUR')) {
-      showBanner('Setup not complete. Open <code>config.js</code> and replace the two placeholder values with your Supabase URL and anon key.')
-      document.getElementById('list').innerHTML = ''
-      return
-    }
-    try {
-      db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-      const { error } = await db.from('thoughts').select('id').limit(1)
-      if (error) throw error
-      document.getElementById('dot').className = 'dot connected'
-      document.getElementById('statusText').textContent = 'Connected to your database'
-      document.getElementById('saveBtn').disabled = false
-      await load()
-    } catch (e) {
-      showBanner('Could not connect to your database.<br><br>Error: <code>' + e.message + '</code><br><br>Check that your URL and anon key in <code>config.js</code> are correct and that you ran the migration SQL in Supabase.')
-      document.getElementById('list').innerHTML = ''
-    }
-  }
+  /* ============ AUTH ============ */
+  const authScreen = document.getElementById("authScreen");
+  const appEl = document.getElementById("app");
+  const authEmail = document.getElementById("authEmail");
+  const authPassword = document.getElementById("authPassword");
+  const authSubmitBtn = document.getElementById("authSubmitBtn");
+  const authToggleBtn = document.getElementById("authToggleBtn");
+  const authError = document.getElementById("authError");
+  const authSub = document.getElementById("authSub");
+  let authMode = "signin"; // or "signup"
 
-  async function save() {
-    const input = document.getElementById('input')
-    const text = input.value.trim()
-    if (!text) return
-    const btn = document.getElementById('saveBtn')
-    const msg = document.getElementById('saveMsg')
-    btn.disabled = true
-    btn.textContent = 'Saving...'
-    msg.textContent = ''
-    msg.className = 'save-msg'
+  authToggleBtn.addEventListener("click", () => {
+    authMode = authMode === "signin" ? "signup" : "signin";
+    if (authMode === "signup") {
+      authSub.textContent = "Create your account";
+      authSubmitBtn.textContent = "Create Account";
+      authToggleBtn.textContent = "Already have an account? Sign in";
+    } else {
+      authSub.textContent = "Sign in to your brain";
+      authSubmitBtn.textContent = "Sign In";
+      authToggleBtn.textContent = "Need an account? Create one";
+    }
+    authError.textContent = "";
+  });
+
+  authSubmitBtn.addEventListener("click", async () => {
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    if (!email || !password) {
+      authError.textContent = "Enter an email and password.";
+      return;
+    }
+    authSubmitBtn.disabled = true;
+    authError.textContent = "";
     try {
-      const { error } = await db.from('thoughts').insert({ content: text })
-      if (error) throw error
-      input.value = ''
-      msg.textContent = '✓ Saved'
-      msg.className = 'save-msg ok'
-      await load()
-    } catch (e) {
-      msg.textContent = '✗ ' + e.message
-      msg.className = 'save-msg err'
+      const { error } = authMode === "signup"
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (err) {
+      authError.textContent = err.message || "Something went wrong.";
     } finally {
-      btn.disabled = false
-      btn.textContent = 'Save to Brain'
+      authSubmitBtn.disabled = false;
     }
-  }
+  });
 
-  async function load() {
-    const list = document.getElementById('list')
+  document.getElementById("signOutBtn").addEventListener("click", async () => {
+    await supabase.auth.signOut();
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    currentUser = session ? session.user : null;
+    if (currentUser) {
+      authScreen.style.display = "none";
+      appEl.style.display = "block";
+      checkConnection();
+      loadRecent();
+    } else {
+      authScreen.style.display = "flex";
+      appEl.style.display = "none";
+    }
+  });
+
+  /* ============ CONNECTION STATUS ============ */
+  async function checkConnection() {
+    const dot = document.getElementById("statusDot");
     try {
-      const { data, error } = await db
-        .from('thoughts').select('*')
-        .order('created_at', { ascending: false }).limit(20)
-      if (error) throw error
-      if (!data || data.length === 0) {
-        list.innerHTML = '<div class="empty">No thoughts yet. Write something above.</div>'
-        return
-      }
-      list.innerHTML = data.map(t => `
-        <div class="thought">
-          <div class="thought-text">${esc(t.content)}</div>
-          <div class="thought-time">${fmt(t.created_at)}</div>
-        </div>`).join('')
-    } catch (e) {
-      list.innerHTML = '<div class="empty" style="color:#ef4444">Could not load: ' + e.message + '</div>'
+      const { error } = await supabase.from("thoughts").select("id").limit(1);
+      dot.classList.toggle("on", !error);
+    } catch {
+      dot.classList.remove("on");
     }
   }
 
-  document.getElementById('input').addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') save()
-  })
+  /* ============ TABS ============ */
+  document.querySelectorAll("#tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+      if (btn.dataset.tab === "recent") loadRecent();
+    });
+  });
 
-  function esc(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-  }
-  function fmt(iso) {
-    return new Date(iso).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    })
+  /* ============ SHARED: save + render ============ */
+  function formatTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
-  init()
+  function renderCards(container, thoughts) {
+    if (!thoughts || thoughts.length === 0) {
+      container.innerHTML = '<div class="empty">Nothing here yet.</div>';
+      return;
+    }
+    container.innerHTML = thoughts.map(t => `
+      <div class="card">
+        <div class="meta">${formatTime(t.created_at)}</div>
+        <div class="content">${escapeHtml(t.content).slice(0, 600)}</div>
+      </div>
+    `).join("");
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str || "";
+    return d.innerHTML;
+  }
+
+  async function loadRecent() {
+    const container = document.getElementById("recentList");
+    const { data, error } = await supabase
+      .from("thoughts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) {
+      container.innerHTML = '<div class="empty">Could not load thoughts.</div>';
+      return;
+    }
+    renderCards(container, data);
+  }
+
+  async function saveThought({ content, metadata }) {
+    const { data, error } = await supabase
+      .from("thoughts")
+      .insert({ content, user_id: currentUser.id, metadata: metadata || {} })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function saveSource({ thoughtId, sourceText, sourceKind }) {
+    try {
+      const { error } = await supabase.from("thought_sources").insert({
+        thought_id: thoughtId,
+        user_id: currentUser.id,
+        source_text: sourceText,
+        source_kind: sourceKind,
+        char_count: sourceText.length,
+        truncated: false
+      });
+      if (error) console.warn("thought_sources insert failed:", error.message);
+    } catch (err) {
+      console.warn("thought_sources insert failed:", err.message);
+    }
+  }
+
+  /* ============ VOICE ============ */
+  const micBtn = document.getElementById("micBtn");
+  const micLabel = document.getElementById("micLabel");
+  const voiceText = document.getElementById("voiceText");
+  const voiceMsg = document.getElementById("voiceMsg");
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizer = null;
+  let listening = false;
+
+  if (!SpeechRecognition) {
+    micLabel.textContent = "Voice capture isn't supported in this browser. Try Chrome or Edge.";
+    micBtn.disabled = true;
+  } else {
+    recognizer = new SpeechRecognition();
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+    recognizer.lang = "en-US";
+
+    recognizer.onresult = (event) => {
+      let finalText = voiceText.dataset.finalText || "";
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += transcript + " ";
+        } else {
+          interim += transcript;
+        }
+      }
+      voiceText.dataset.finalText = finalText;
+      voiceText.value = finalText + interim;
+    };
+
+    recognizer.onerror = () => {
+      voiceMsg.textContent = "Mic error — check your browser's microphone permission.";
+      voiceMsg.className = "msg err";
+      stopListening();
+    };
+
+    recognizer.onend = () => {
+      if (listening) recognizer.start(); // keep going until user stops it
+    };
+  }
+
+  function stopListening() {
+    listening = false;
+    micBtn.classList.remove("listening");
+    micLabel.textContent = "Tap to start speaking";
+    if (recognizer) recognizer.stop();
+  }
+
+  micBtn.addEventListener("click", () => {
+    if (!recognizer) return;
+    if (listening) {
+      stopListening();
+    } else {
+      voiceText.dataset.finalText = voiceText.value ? voiceText.value + " " : "";
+      listening = true;
+      micBtn.classList.add("listening");
+      micLabel.textContent = "Listening… tap to stop";
+      recognizer.start();
+    }
+  });
+
+  document.getElementById("voiceClearBtn").addEventListener("click", () => {
+    voiceText.value = "";
+    voiceText.dataset.finalText = "";
+    voiceMsg.textContent = "";
+  });
+
+  document.getElementById("voiceSaveBtn").addEventListener("click", async () => {
+    const text = voiceText.value.trim();
+    if (!text) { voiceMsg.textContent = "Nothing to save yet."; voiceMsg.className = "msg err"; return; }
+    try {
+      await saveThought({ content: "🎤 " + text });
+      voiceMsg.textContent = "Saved.";
+      voiceMsg.className = "msg ok";
+      voiceText.value = "";
+      voiceText.dataset.finalText = "";
+    } catch (err) {
+      voiceMsg.textContent = "Could not save: " + err.message;
+      voiceMsg.className = "msg err";
+    }
+  });
+
+  /* ============ YOUTUBE ============ */
+  const ytUrl = document.getElementById("ytUrl");
+  const ytPreview = document.getElementById("ytPreview");
+  const ytTranscript = document.getElementById("ytTranscript");
+  const ytTranscriptLabel = document.getElementById("ytTranscriptLabel");
+  const ytSaveRow = document.getElementById("ytSaveRow");
+  const ytMsg = document.getElementById("ytMsg");
+  let ytCurrent = null; // { videoId, title }
+
+  function extractVideoId(url) {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  document.getElementById("ytLookupBtn").addEventListener("click", async () => {
+    ytMsg.textContent = "";
+    const url = ytUrl.value.trim();
+    const videoId = extractVideoId(url);
+    if (!videoId) {
+      ytMsg.textContent = "Couldn't find a video ID in that URL.";
+      ytMsg.className = "msg err";
+      return;
+    }
+    try {
+      const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (!res.ok) throw new Error("Video not found or private.");
+      const data = await res.json();
+      const title = decodeEntities(data.title);
+      ytCurrent = { videoId, title };
+      const transcriptLink = `https://www.youtube.com/watch?v=${videoId}`;
+      ytPreview.innerHTML = `
+        <img class="thumb" src="${data.thumbnail_url}" alt="">
+        <h3 style="margin:6px 0">${escapeHtml(title)}</h3>
+        <a class="btn secondary" style="display:inline-block;text-decoration:none;margin-top:6px" href="${transcriptLink}" target="_blank" rel="noopener">Open video → Get Transcript</a>
+        <p class="note">On the video page, click the "..." below the video (or the description), choose <b>Show transcript</b>, then select all the transcript text and copy it. Come back here and paste it below.</p>
+      `;
+      ytTranscriptLabel.style.display = "block";
+      ytTranscript.style.display = "block";
+      ytSaveRow.style.display = "flex";
+    } catch (err) {
+      ytMsg.textContent = "Could not look up that video: " + err.message;
+      ytMsg.className = "msg err";
+    }
+  });
+
+  document.getElementById("ytSaveBtn").addEventListener("click", async () => {
+    const transcript = decodeEntities(ytTranscript.value.trim());
+    if (!ytCurrent) return;
+    if (!transcript) {
+      ytMsg.textContent = "Paste the transcript before saving.";
+      ytMsg.className = "msg err";
+      return;
+    }
+    try {
+      const content = `📹 YouTube: ${ytCurrent.title}\n\n${transcript}`;
+      const thought = await saveThought({ content, metadata: { video_id: ytCurrent.videoId } });
+      await saveSource({ thoughtId: thought.id, sourceText: transcript, sourceKind: "youtube_transcript" });
+      ytMsg.textContent = "Saved.";
+      ytMsg.className = "msg ok";
+      ytTranscript.value = "";
+      ytUrl.value = "";
+      ytPreview.innerHTML = "";
+      ytTranscriptLabel.style.display = "none";
+      ytTranscript.style.display = "none";
+      ytSaveRow.style.display = "none";
+      ytCurrent = null;
+    } catch (err) {
+      ytMsg.textContent = "Could not save: " + err.message;
+      ytMsg.className = "msg err";
+    }
+  });
+
+  /* ============ PDF ============ */
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  const pdfDropzone = document.getElementById("pdfDropzone");
+  const pdfInput = document.getElementById("pdfInput");
+  const pdfProgress = document.getElementById("pdfProgress");
+  const pdfTextLabel = document.getElementById("pdfTextLabel");
+  const pdfText = document.getElementById("pdfText");
+  const pdfSaveRow = document.getElementById("pdfSaveRow");
+  const pdfMsg = document.getElementById("pdfMsg");
+  let pdfFileName = "";
+
+  pdfDropzone.addEventListener("click", () => pdfInput.click());
+  pdfDropzone.addEventListener("dragover", (e) => { e.preventDefault(); pdfDropzone.classList.add("drag"); });
+  pdfDropzone.addEventListener("dragleave", () => pdfDropzone.classList.remove("drag"));
+  pdfDropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    pdfDropzone.classList.remove("drag");
+    if (e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]);
+  });
+  pdfInput.addEventListener("change", () => {
+    if (pdfInput.files.length) handlePdfFile(pdfInput.files[0]);
+  });
+
+  async function handlePdfFile(file) {
+    if (file.type !== "application/pdf") {
+      pdfProgress.textContent = "That's not a PDF file.";
+      pdfProgress.className = "msg err";
+      return;
+    }
+    pdfFileName = file.name;
+    pdfProgress.className = "msg";
+    try {
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      let fullText = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        pdfProgress.textContent = `Extracting page ${i} of ${pdf.numPages}…`;
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map(item => item.str).join(" ") + "\n\n";
+      }
+      pdfText.value = decodeEntities(fullText.trim());
+      pdfProgress.textContent = `Extracted ${pdf.numPages} page(s) from ${pdfFileName}.`;
+      pdfTextLabel.style.display = "block";
+      pdfText.style.display = "block";
+      pdfSaveRow.style.display = "flex";
+    } catch (err) {
+      pdfProgress.textContent = "Could not read that PDF: " + err.message;
+      pdfProgress.className = "msg err";
+    }
+  }
+
+  document.getElementById("pdfSaveBtn").addEventListener("click", async () => {
+    const text = pdfText.value.trim();
+    if (!text) { pdfMsg.textContent = "Nothing to save."; pdfMsg.className = "msg err"; return; }
+    try {
+      const content = `📄 PDF: ${pdfFileName}\n\n${text}`;
+      await saveThought({ content });
+      pdfMsg.textContent = "Saved.";
+      pdfMsg.className = "msg ok";
+      pdfText.value = "";
+      pdfTextLabel.style.display = "none";
+      pdfText.style.display = "none";
+      pdfSaveRow.style.display = "none";
+      pdfProgress.textContent = "";
+      pdfInput.value = "";
+    } catch (err) {
+      pdfMsg.textContent = "Could not save: " + err.message;
+      pdfMsg.className = "msg err";
+    }
+  });
+
+  /* ============ URL ============ */
+  document.getElementById("urlSaveBtn").addEventListener("click", async () => {
+    const urlMsg = document.getElementById("urlMsg");
+    const url = document.getElementById("urlInput").value.trim();
+    const text = decodeEntities(document.getElementById("urlText").value.trim());
+    if (!url || !text) {
+      urlMsg.textContent = "Add both the URL and the article text.";
+      urlMsg.className = "msg err";
+      return;
+    }
+    try {
+      const content = `🔗 URL: ${url}\n\n${text}`;
+      const thought = await saveThought({ content, metadata: { url } });
+      await saveSource({ thoughtId: thought.id, sourceText: text, sourceKind: "web" });
+      urlMsg.textContent = "Saved.";
+      urlMsg.className = "msg ok";
+      document.getElementById("urlInput").value = "";
+      document.getElementById("urlText").value = "";
+    } catch (err) {
+      urlMsg.textContent = "Could not save: " + err.message;
+      urlMsg.className = "msg err";
+    }
+  });
+
+  /* ============ SEARCH ============ */
+  document.getElementById("searchBtn").addEventListener("click", async () => {
+    const term = document.getElementById("searchInput").value.trim();
+    const container = document.getElementById("searchResults");
+    if (!term) return;
+    container.innerHTML = '<div class="empty">Searching…</div>';
+    const { data, error } = await supabase
+      .from("thoughts")
+      .select("*")
+      .ilike("content", `%${term}%`)
+      .order("created_at", { ascending: false });
+    if (error) {
+      container.innerHTML = '<div class="empty">Search failed.</div>';
+      return;
+    }
+    renderCards(container, data);
+  });
+
+  document.getElementById("searchClearBtn").addEventListener("click", () => {
+    document.getElementById("searchInput").value = "";
+    document.getElementById("searchResults").innerHTML = "";
+  });
+
+  /* ============ PWA: service worker ============ */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+
+})();
 </script>
 </body>
 </html>
